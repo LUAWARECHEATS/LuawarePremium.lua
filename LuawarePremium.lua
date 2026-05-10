@@ -1,30 +1,31 @@
 --[[
-    LuaWare UI Library v4.0
-    Basit, Temiz, Çalışan
-    - Solda sekmeler
-    - Emoji yok
-    - Yumuşak drag
-    - Hiçbir yerde sabitlenmez
+    LuaWare UI Library v5.0
+    Professional Smooth Drag - As in the video
+    No lag, no sticking, no limits.
 ]]
 
 -- ============================================
--- SERVİSLER
+-- SERVICES
 -- ============================================
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-runService = game:GetService("RunService")
+local RunService = game:GetService("RunService")
 local LocalPlayer = game:GetService("Players").LocalPlayer
 
 -- ============================================
--- YUMUŞAK DRAG (Çalışan, temiz)
+-- PREMIUM SMOOTH DRAG WITH INERTIA
 -- ============================================
-local function MakeDraggable(dragObject, targetObject)
+local function MakeSmoothDraggable(dragObject, targetObject)
     local dragging = false
     local dragStart = Vector2.new()
     local startPos = UDim2.new()
+    local velocity = Vector2.new()
+    local lastPos = Vector2.new()
+    local lastTime = tick()
+    local dragConnection = nil
+    local releaseConnection = nil
     
-    local function updatePosition(input)
-        local delta = input.Position - dragStart
+    local function updatePosition(delta)
         targetObject.Position = UDim2.new(
             startPos.X.Scale,
             startPos.X.Offset + delta.X,
@@ -38,43 +39,69 @@ local function MakeDraggable(dragObject, targetObject)
             dragging = true
             dragStart = input.Position
             startPos = targetObject.Position
+            lastPos = input.Position
+            lastTime = tick()
+            velocity = Vector2.new()
             
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
+            dragConnection = UserInputService.InputChanged:Connect(function(input)
+                if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                    local now = tick()
+                    local dt = now - lastTime
+                    if dt > 0.001 then
+                        velocity = (input.Position - lastPos) / dt
+                        lastPos = input.Position
+                        lastTime = now
+                    end
+                    
+                    local delta = input.Position - dragStart
+                    updatePosition(delta)
                 end
             end)
-        end
-    end)
-    
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            updatePosition(input)
+            
+            releaseConnection = UserInputService.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+                    dragging = false
+                    dragConnection:Disconnect()
+                    releaseConnection:Disconnect()
+                    
+                    if velocity.Magnitude > 10 then
+                        local inertiaPos = UDim2.new(
+                            startPos.X.Scale,
+                            startPos.X.Offset + velocity.X * 0.1,
+                            startPos.Y.Scale,
+                            startPos.Y.Offset + velocity.Y * 0.1
+                        )
+                        TweenService:Create(targetObject, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                            Position = inertiaPos
+                        }):Play()
+                    end
+                end
+            end)
         end
     end)
 end
 
 -- ============================================
--- TEMA
+-- THEME (Dark by default)
 -- ============================================
 local Theme = {
-    Main = Color3.fromRGB(20, 20, 28),
-    TitleBar = Color3.fromRGB(28, 28, 38),
-    TabActive = Color3.fromRGB(255, 70, 70),
-    TabInactive = Color3.fromRGB(35, 35, 48),
-    TextPrimary = Color3.fromRGB(255, 255, 255),
-    TextSecondary = Color3.fromRGB(170, 175, 190),
-    ItemBg = Color3.fromRGB(30, 30, 42),
-    ButtonBg = Color3.fromRGB(40, 40, 55),
-    ButtonHover = Color3.fromRGB(255, 70, 70),
-    Border = Color3.fromRGB(45, 45, 58),
-    ToggleOn = Color3.fromRGB(255, 70, 70),
-    ToggleOff = Color3.fromRGB(70, 75, 90),
+    Main = Color3.fromRGB(18, 18, 24),
+    TitleBar = Color3.fromRGB(26, 26, 34),
+    TabActive = Color3.fromRGB(220, 60, 60),
+    TabInactive = Color3.fromRGB(34, 34, 44),
+    TextPrimary = Color3.fromRGB(245, 245, 255),
+    TextSecondary = Color3.fromRGB(160, 165, 180),
+    ItemBg = Color3.fromRGB(28, 28, 36),
+    ButtonBg = Color3.fromRGB(38, 38, 48),
+    ButtonHover = Color3.fromRGB(220, 60, 60),
+    Border = Color3.fromRGB(40, 40, 52),
+    ToggleOn = Color3.fromRGB(220, 60, 60),
+    ToggleOff = Color3.fromRGB(65, 70, 85),
     ToggleCircle = Color3.fromRGB(255, 255, 255),
 }
 
 -- ============================================
--- GUI OLUŞTUR
+-- GUI
 -- ============================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "LuaWare"
@@ -83,10 +110,9 @@ ScreenGui.ResetOnSpawn = false
 local guiParent = LocalPlayer:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
 ScreenGui.Parent = guiParent
 
--- Ana Frame
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 560, 0, 440)
-MainFrame.Position = UDim2.new(0.5, -280, 0.5, -220)
+MainFrame.Size = UDim2.new(0, 580, 0, 460)
+MainFrame.Position = UDim2.new(0.5, -290, 0.5, -230)
 MainFrame.BackgroundColor3 = Theme.Main
 MainFrame.BackgroundTransparency = 0.05
 MainFrame.BorderSizePixel = 0
@@ -100,11 +126,11 @@ MainStroke.Color = Theme.Border
 MainStroke.Thickness = 1
 MainStroke.Parent = MainFrame
 
--- Başlık Çubuğu
+-- Title Bar (Drag Area)
 local TitleBar = Instance.new("Frame")
-TitleBar.Size = UDim2.new(1, 0, 0, 38)
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
 TitleBar.BackgroundColor3 = Theme.TitleBar
-TitleBar.BackgroundTransparency = 0.2
+TitleBar.BackgroundTransparency = 0.1
 TitleBar.BorderSizePixel = 0
 
 local TitleCorner = Instance.new("UICorner")
@@ -148,33 +174,29 @@ local MinCorner = Instance.new("UICorner")
 MinCorner.CornerRadius = UDim.new(0, 8)
 MinCorner.Parent = MinBtn
 
--- SOL SEKME ALANI
+-- Left Tabs
 local TabContainer = Instance.new("ScrollingFrame")
-TabContainer.Size = UDim2.new(0, 140, 1, -38)
-TabContainer.Position = UDim2.new(0, 0, 0, 38)
+TabContainer.Size = UDim2.new(0, 140, 1, -40)
+TabContainer.Position = UDim2.new(0, 0, 0, 40)
 TabContainer.BackgroundTransparency = 1
 TabContainer.ScrollBarThickness = 0
-TabContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
 
 local TabLayout = Instance.new("UIListLayout")
 TabLayout.Parent = TabContainer
 TabLayout.Padding = UDim.new(0, 5)
 
--- AYIRICI CIZGI
 local Separator = Instance.new("Frame")
-Separator.Size = UDim2.new(0, 1, 1, -48)
-Separator.Position = UDim2.new(0, 140, 0, 42)
+Separator.Size = UDim2.new(0, 1, 1, -50)
+Separator.Position = UDim2.new(0, 140, 0, 45)
 Separator.BackgroundColor3 = Theme.Border
 Separator.BackgroundTransparency = 0.5
 Separator.BorderSizePixel = 0
 
--- SAYFA ALANI
 local PageContainer = Instance.new("Frame")
-PageContainer.Size = UDim2.new(1, -155, 1, -48)
-PageContainer.Position = UDim2.new(0, 150, 0, 42)
+PageContainer.Size = UDim2.new(1, -155, 1, -50)
+PageContainer.Position = UDim2.new(0, 150, 0, 45)
 PageContainer.BackgroundTransparency = 1
 
--- EKLEMELER
 Title.Parent = TitleBar
 CloseBtn.Parent = TitleBar
 MinBtn.Parent = TitleBar
@@ -184,23 +206,23 @@ Separator.Parent = MainFrame
 PageContainer.Parent = MainFrame
 MainFrame.Parent = ScreenGui
 
--- DRAG
-MakeDraggable(TitleBar, MainFrame)
+-- Apply Smooth Drag
+MakeSmoothDraggable(TitleBar, MainFrame)
 
--- MINIMIZE
+-- Minimize
 local minimized = false
 MinBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
     if minimized then
         TweenService:Create(MainFrame, TweenInfo.new(0.25), {
-            Size = UDim2.new(0, 560, 0, 42)
+            Size = UDim2.new(0, 580, 0, 45)
         }):Play()
         TabContainer.Visible = false
         PageContainer.Visible = false
         Separator.Visible = false
     else
         TweenService:Create(MainFrame, TweenInfo.new(0.25), {
-            Size = UDim2.new(0, 560, 0, 440)
+            Size = UDim2.new(0, 580, 0, 460)
         }):Play()
         task.wait(0.25)
         TabContainer.Visible = true
@@ -209,14 +231,12 @@ MinBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- KAPAT
 CloseBtn.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
 end)
 
--- HOVER EFEKTLERI
 CloseBtn.MouseEnter:Connect(function()
-    TweenService:Create(CloseBtn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(180, 50, 50)}):Play()
+    TweenService:Create(CloseBtn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(170, 50, 50)}):Play()
 end)
 CloseBtn.MouseLeave:Connect(function()
     TweenService:Create(CloseBtn, TweenInfo.new(0.1), {BackgroundColor3 = Theme.ButtonBg}):Play()
@@ -230,21 +250,18 @@ MinBtn.MouseLeave:Connect(function()
 end)
 
 -- ============================================
--- LUAWARE API
+-- API
 -- ============================================
 local LuaWare = {}
 local firstTab = true
 
 function LuaWare:Window(options)
-    local scriptName = options.ScriptName or "LuaWare"
-    Title.Text = scriptName
-    
+    Title.Text = options.ScriptName or "LuaWare"
     local window = {}
     
     function window:Tab(tabName, pageTitle)
-        -- SOL SEKME BUTONU
         local TabBtn = Instance.new("TextButton")
-        TabBtn.Size = UDim2.new(1, -20, 0, 38)
+        TabBtn.Size = UDim2.new(1, -20, 0, 40)
         TabBtn.Position = UDim2.new(0, 10, 0, 0)
         TabBtn.BackgroundColor3 = Theme.TabInactive
         TabBtn.Text = tabName
@@ -257,7 +274,6 @@ function LuaWare:Window(options)
         TabCorner.CornerRadius = UDim.new(0, 8)
         TabCorner.Parent = TabBtn
         
-        -- SAYFA
         local Page = Instance.new("ScrollingFrame")
         Page.Size = UDim2.new(1, 0, 1, 0)
         Page.BackgroundTransparency = 1
@@ -278,7 +294,6 @@ function LuaWare:Window(options)
         ContentLayout.Padding = UDim.new(0, 8)
         ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
         
-        -- SAYFA BASLIGI
         if pageTitle then
             local PageTitle = Instance.new("TextLabel")
             PageTitle.Size = UDim2.new(1, 0, 0, 35)
@@ -300,7 +315,6 @@ function LuaWare:Window(options)
         ContentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas)
         updateCanvas()
         
-        -- ILK TAB AKTIF
         if firstTab then
             firstTab = false
             TabBtn.BackgroundColor3 = Theme.TabActive
@@ -328,12 +342,12 @@ function LuaWare:Window(options)
         TabBtn.Parent = TabContainer
         TabContainer.CanvasSize = UDim2.new(0, 0, 0, TabLayout.AbsoluteContentSize.Y + 20)
         
-        -- ELEMENTLER
+        -- Elements
         local elements = {}
         
         function elements:Section(title)
             local section = Instance.new("TextLabel")
-            section.Size = UDim2.new(1, 0, 0, 25)
+            section.Size = UDim2.new(1, 0, 0, 28)
             section.BackgroundTransparency = 1
             section.Text = title
             section.TextColor3 = Theme.TextPrimary
@@ -394,13 +408,7 @@ function LuaWare:Window(options)
             frame.Parent = Content
             updateCanvas()
             
-            return {
-                Set = function(newText, newDesc)
-                    label.Text = newText
-                    if descLabel then descLabel.Text = newDesc or "" end
-                    updateCanvas()
-                end
-            }
+            return { Set = function(t, d) label.Text = t; if descLabel then descLabel.Text = d or "" end; updateCanvas() end }
         end
         
         function elements:Button(text, desc, callback)
@@ -454,33 +462,16 @@ function LuaWare:Window(options)
             
             btn.MouseButton1Click:Connect(callback)
             
-            btn.MouseEnter:Connect(function()
-                TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Theme.ButtonHover}):Play()
-            end)
-            btn.MouseLeave:Connect(function()
-                TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Theme.ButtonBg}):Play()
-            end)
+            btn.MouseEnter:Connect(function() TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Theme.ButtonHover}):Play() end)
+            btn.MouseLeave:Connect(function() TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Theme.ButtonBg}):Play() end)
             
-            frame.MouseEnter:Connect(function()
-                TweenService:Create(frame, TweenInfo.new(0.15), {BackgroundTransparency = 0}):Play()
-            end)
-            frame.MouseLeave:Connect(function()
-                TweenService:Create(frame, TweenInfo.new(0.15), {BackgroundTransparency = 0.15}):Play()
-            end)
+            frame.MouseEnter:Connect(function() TweenService:Create(frame, TweenInfo.new(0.15), {BackgroundTransparency = 0}):Play() end)
+            frame.MouseLeave:Connect(function() TweenService:Create(frame, TweenInfo.new(0.15), {BackgroundTransparency = 0.15}):Play() end)
             
             frame.Parent = Content
             updateCanvas()
             
-            return {
-                Set = function(newText, newDesc, newCallback)
-                    label.Text = newText
-                    if descLabel then descLabel.Text = newDesc or "" end
-                    if newCallback then
-                        btn.MouseButton1Click:Connect(newCallback)
-                    end
-                    updateCanvas()
-                end
-            }
+            return { Set = function(t, d, cb) label.Text = t; if descLabel then descLabel.Text = d or "" end; if cb then btn.MouseButton1Click:Connect(cb) end; updateCanvas() end }
         end
         
         function elements:Toggle(text, desc, default, callback)
@@ -556,27 +547,16 @@ function LuaWare:Window(options)
                 callback(state)
             end
             
-            frame.MouseButton1Click:Connect(function()
-                updateState(not state)
-            end)
-            toggleBg.MouseButton1Click:Connect(function()
-                updateState(not state)
-            end)
+            frame.MouseButton1Click:Connect(function() updateState(not state) end)
+            toggleBg.MouseButton1Click:Connect(function() updateState(not state) end)
             
-            frame.MouseEnter:Connect(function()
-                TweenService:Create(frame, TweenInfo.new(0.15), {BackgroundTransparency = 0}):Play()
-            end)
-            frame.MouseLeave:Connect(function()
-                TweenService:Create(frame, TweenInfo.new(0.15), {BackgroundTransparency = 0.15}):Play()
-            end)
+            frame.MouseEnter:Connect(function() TweenService:Create(frame, TweenInfo.new(0.15), {BackgroundTransparency = 0}):Play() end)
+            frame.MouseLeave:Connect(function() TweenService:Create(frame, TweenInfo.new(0.15), {BackgroundTransparency = 0.15}):Play() end)
             
             frame.Parent = Content
             updateCanvas()
             
-            return {
-                Set = updateState,
-                Get = function() return state end
-            }
+            return { Set = updateState, Get = function() return state end }
         end
         
         return elements
@@ -593,15 +573,11 @@ function LuaWare:Destroy()
     ScreenGui:Destroy()
 end
 
--- ============================================
--- KEYBIND
--- ============================================
 UserInputService.InputBegan:Connect(function(input)
     if input.KeyCode == Enum.KeyCode.RightShift then
         LuaWare:ToggleUI()
     end
 end)
 
-print("LuaWare v4.0 yuklendi. RightShift ile ac/kapat.")
-
+print("LuaWare v5.0 yüklendi - Profesyonel yumuşak drag aktif! RightShift ile menüyü aç/kapat.")
 return LuaWare
