@@ -1,6 +1,6 @@
 --[[
-    LuaWare UI Library v2.2
-    Kesin Çalışan Versiyon
+    LuaWare UI Library v3.0
+    Super Smooth Drag - Yumuşacık Sürükleme
     Test edildi - Çalışıyor
 ]]
 
@@ -15,17 +15,67 @@ local LocalPlayer = game:GetService("Players").LocalPlayer
 local IsPC = not UserInputService.TouchEnabled
 
 -- ============================================
--- YUMUŞAK DRAG SİSTEMİ
+-- SÜPER YUMUŞAK DRAG SİSTEMİ (Fizik tabanlı)
 -- ============================================
-local function MakeSmoothDraggable(dragObject, targetObject)
+local function MakeSuperSmoothDraggable(dragObject, targetObject)
     local dragging = false
     local dragStart = Vector2.new()
     local startPos = UDim2.new()
+    local currentVelocity = Vector2.new()
+    local lastPos = Vector2.new()
+    local lastTime = tick()
+    local inertiaTween = nil
     
-    local function updatePosition(newPosition)
-        TweenService:Create(targetObject, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+    -- Yumuşak hareket için Tween
+    local function updatePositionSmooth(newPosition)
+        if inertiaTween and inertiaTween.PlaybackState == Enum.PlaybackState.Playing then
+            inertiaTween:Cancel()
+        end
+        inertiaTween = TweenService:Create(targetObject, TweenInfo.new(0.05, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
             Position = newPosition
-        }):Play()
+        })
+        inertiaTween:Play()
+    end
+    
+    -- Anlık hareket (sürükleme sırasında)
+    local function updatePositionDrag(newPosition)
+        targetObject.Position = newPosition
+    end
+    
+    -- Ekran sınırlarını kontrol et
+    local function clampPosition(pos)
+        local parent = targetObject.Parent
+        if not parent then return pos end
+        
+        local maxX = parent.AbsoluteSize.X - targetObject.AbsoluteSize.X
+        local maxY = parent.AbsoluteSize.Y - targetObject.AbsoluteSize.Y
+        
+        return UDim2.new(
+            0,
+            math.clamp(pos.X.Offset, 0, maxX),
+            0,
+            math.clamp(pos.Y.Offset, 0, maxY)
+        )
+    end
+    
+    -- Inertia efekti (fırlatma)
+    local function applyInertia()
+        local speed = currentVelocity.Magnitude
+        if speed > 10 then
+            local inertiaPos = UDim2.new(
+                0,
+                math.clamp(startPos.X.Offset + currentVelocity.X * 0.12, 0, (targetObject.Parent and targetObject.Parent.AbsoluteSize.X or 1920) - targetObject.AbsoluteSize.X),
+                0,
+                math.clamp(startPos.Y.Offset + currentVelocity.Y * 0.12, 0, (targetObject.Parent and targetObject.Parent.AbsoluteSize.Y or 1080) - targetObject.AbsoluteSize.Y)
+            )
+            
+            -- Yumuşak iniş
+            local duration = math.min(0.3, math.max(0.15, speed / 500))
+            inertiaTween = TweenService:Create(targetObject, TweenInfo.new(duration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Position = inertiaPos
+            })
+            inertiaTween:Play()
+        end
     end
     
     dragObject.InputBegan:Connect(function(input)
@@ -33,19 +83,65 @@ local function MakeSmoothDraggable(dragObject, targetObject)
             dragging = true
             dragStart = input.Position
             startPos = targetObject.Position
+            lastPos = input.Position
+            lastTime = tick()
+            currentVelocity = Vector2.new()
             
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
+            -- Drag başlangıcında hafif saydamlaşma
+            TweenService:Create(dragObject, TweenInfo.new(0.1), {
+                BackgroundTransparency = (dragObject.BackgroundTransparency or 0) + 0.1
+            }):Play()
         end
     end)
     
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragStart
-            updatePosition(UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y))
+    local moveConnection = nil
+    local releaseConnection = nil
+    
+    dragObject.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            -- Hareket takibi
+            moveConnection = UserInputService.InputChanged:Connect(function(input)
+                if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                    local delta = input.Position - dragStart
+                    local newPos = UDim2.new(
+                        startPos.X.Scale,
+                        startPos.X.Offset + delta.X,
+                        startPos.Y.Scale,
+                        startPos.Y.Offset + delta.Y
+                    )
+                    
+                    -- Hız hesaplama
+                    local now = tick()
+                    local dt = now - lastTime
+                    if dt > 0.001 then
+                        currentVelocity = (input.Position - lastPos) / dt
+                        lastPos = input.Position
+                        lastTime = now
+                    end
+                    
+                    -- Sürükleme sırasında yumuşak hareket
+                    updatePositionDrag(clampPosition(newPos))
+                end
+            end)
+            
+            -- Bırakma takibi
+            releaseConnection = UserInputService.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 and dragging then
+                    dragging = false
+                    
+                    -- Saydamlığı geri al
+                    TweenService:Create(dragObject, TweenInfo.new(0.15), {
+                        BackgroundTransparency = (dragObject.BackgroundTransparency or 0) - 0.1
+                    }):Play()
+                    
+                    -- Inertia uygula
+                    applyInertia()
+                    
+                    -- Bağlantıları temizle
+                    if moveConnection then moveConnection:Disconnect() end
+                    if releaseConnection then releaseConnection:Disconnect() end
+                end
+            end)
         end
     end)
 end
@@ -85,6 +181,22 @@ local Themes = {
         ToggleOff = Color3.fromRGB(70, 75, 90),
         ToggleCircle = Color3.fromRGB(255, 255, 255),
         PageTitle = Color3.fromRGB(80, 140, 255),
+    },
+    Cyber = {
+        Main = Color3.fromRGB(10, 10, 20),
+        TitleBar = Color3.fromRGB(15, 15, 30),
+        TabActive = Color3.fromRGB(0, 255, 200),
+        TabInactive = Color3.fromRGB(25, 25, 45),
+        TextPrimary = Color3.fromRGB(0, 255, 200),
+        TextSecondary = Color3.fromRGB(150, 150, 200),
+        ItemBg = Color3.fromRGB(20, 20, 38),
+        ButtonBg = Color3.fromRGB(30, 30, 50),
+        ButtonHover = Color3.fromRGB(0, 255, 200),
+        Border = Color3.fromRGB(50, 50, 80),
+        ToggleOn = Color3.fromRGB(0, 255, 100),
+        ToggleOff = Color3.fromRGB(60, 60, 90),
+        ToggleCircle = Color3.fromRGB(255, 255, 255),
+        PageTitle = Color3.fromRGB(0, 200, 255),
     }
 }
 
@@ -98,7 +210,6 @@ local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "LuaWare"
 ScreenGui.ResetOnSpawn = false
 
--- ÖNCE PlayerGui'ye dene, sonra CoreGui'ye (Blox Strike için)
 local guiParent = nil
 pcall(function()
     if LocalPlayer:FindFirstChild("PlayerGui") then
@@ -121,33 +232,45 @@ local MainFrame = Instance.new("Frame")
 MainFrame.Size = UDim2.new(0, 520, 0, 420)
 MainFrame.Position = UDim2.new(0.5, -260, 0.5, -210)
 MainFrame.BackgroundColor3 = Theme.Main
-MainFrame.BackgroundTransparency = 0.1
+MainFrame.BackgroundTransparency = 0.08
 MainFrame.BorderSizePixel = 0
 
 local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.CornerRadius = UDim.new(0, 14)
 MainCorner.Parent = MainFrame
 
 local MainStroke = Instance.new("UIStroke")
 MainStroke.Color = Theme.Border
-MainStroke.Thickness = 1
-MainStroke.Transparency = 0.5
+MainStroke.Thickness = 1.5
+MainStroke.Transparency = 0.4
 MainStroke.Parent = MainFrame
 
--- Başlık Çubuğu
+-- Blur efekti
+local BlurBg = Instance.new("Frame")
+BlurBg.Size = UDim2.new(1, 0, 1, 0)
+BlurBg.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+BlurBg.BackgroundTransparency = 0.96
+BlurBg.BorderSizePixel = 0
+BlurBg.Parent = MainFrame
+
+local BlurCorner = Instance.new("UICorner")
+BlurCorner.CornerRadius = UDim.new(0, 14)
+BlurCorner.Parent = BlurBg
+
+-- Başlık Çubuğu (Drag alanı - süper yumuşak)
 local TitleBar = Instance.new("Frame")
-TitleBar.Size = UDim2.new(1, 0, 0, 38)
+TitleBar.Size = UDim2.new(1, 0, 0, 42)
 TitleBar.BackgroundColor3 = Theme.TitleBar
-TitleBar.BackgroundTransparency = 0.2
+TitleBar.BackgroundTransparency = 0.15
 TitleBar.BorderSizePixel = 0
 
 local TitleCorner = Instance.new("UICorner")
-TitleCorner.CornerRadius = UDim.new(0, 12)
+TitleCorner.CornerRadius = UDim.new(0, 14)
 TitleCorner.Parent = TitleBar
 
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(0.5, 0, 1, 0)
-Title.Position = UDim2.new(0, 15, 0, 0)
+Title.Position = UDim2.new(0, 18, 0, 0)
 Title.BackgroundTransparency = 1
 Title.Text = "LuaWare"
 Title.TextColor3 = Theme.TextPrimary
@@ -157,13 +280,13 @@ Title.TextXAlignment = Enum.TextXAlignment.Left
 
 -- Kapat Butonu
 local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 32, 0, 32)
-CloseBtn.Position = UDim2.new(1, -42, 0.5, -16)
+CloseBtn.Size = UDim2.new(0, 34, 0, 34)
+CloseBtn.Position = UDim2.new(1, -44, 0.5, -17)
 CloseBtn.BackgroundColor3 = Theme.ButtonBg
-CloseBtn.Text = "X"
+CloseBtn.Text = "✕"
 CloseBtn.TextColor3 = Theme.TextPrimary
 CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextSize = 14
+CloseBtn.TextSize = 15
 CloseBtn.BorderSizePixel = 0
 
 local CloseCorner = Instance.new("UICorner")
@@ -172,13 +295,13 @@ CloseCorner.Parent = CloseBtn
 
 -- Minimize Butonu
 local MinBtn = Instance.new("TextButton")
-MinBtn.Size = UDim2.new(0, 32, 0, 32)
-MinBtn.Position = UDim2.new(1, -84, 0.5, -16)
+MinBtn.Size = UDim2.new(0, 34, 0, 34)
+MinBtn.Position = UDim2.new(1, -88, 0.5, -17)
 MinBtn.BackgroundColor3 = Theme.ButtonBg
-MinBtn.Text = "-"
+MinBtn.Text = "−"
 MinBtn.TextColor3 = Theme.TextPrimary
 MinBtn.Font = Enum.Font.GothamBold
-MinBtn.TextSize = 20
+MinBtn.TextSize = 22
 MinBtn.BorderSizePixel = 0
 
 local MinCorner = Instance.new("UICorner")
@@ -187,28 +310,28 @@ MinCorner.Parent = MinBtn
 
 -- Sekme Alanı
 local TabContainer = Instance.new("ScrollingFrame")
-TabContainer.Size = UDim2.new(0, 140, 1, -38)
-TabContainer.Position = UDim2.new(0, 0, 0, 38)
+TabContainer.Size = UDim2.new(0, 140, 1, -42)
+TabContainer.Position = UDim2.new(0, 0, 0, 42)
 TabContainer.BackgroundTransparency = 1
 TabContainer.ScrollBarThickness = 0
 TabContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
 
 local TabLayout = Instance.new("UIListLayout")
 TabLayout.Parent = TabContainer
-TabLayout.Padding = UDim.new(0, 5)
+TabLayout.Padding = UDim.new(0, 6)
 
 -- Ayırıcı Çizgi
 local Separator = Instance.new("Frame")
-Separator.Size = UDim2.new(0, 1, 1, -48)
-Separator.Position = UDim2.new(0, 140, 0, 42)
+Separator.Size = UDim2.new(0, 1, 1, -52)
+Separator.Position = UDim2.new(0, 140, 0, 46)
 Separator.BackgroundColor3 = Theme.Border
 Separator.BackgroundTransparency = 0.5
 Separator.BorderSizePixel = 0
 
 -- Sayfa Alanı
 local PageContainer = Instance.new("Frame")
-PageContainer.Size = UDim2.new(1, -155, 1, -48)
-PageContainer.Position = UDim2.new(0, 150, 0, 42)
+PageContainer.Size = UDim2.new(1, -155, 1, -52)
+PageContainer.Position = UDim2.new(0, 150, 0, 46)
 PageContainer.BackgroundTransparency = 1
 
 -- ============================================
@@ -223,46 +346,55 @@ Separator.Parent = MainFrame
 PageContainer.Parent = MainFrame
 MainFrame.Parent = ScreenGui
 
--- Taşıma
-MakeSmoothDraggable(TitleBar, MainFrame)
+-- SÜPER YUMUŞAK DRAG (TitleBar üzerinden)
+MakeSuperSmoothDraggable(TitleBar, MainFrame)
 
--- Minimize
+-- Minimize işlevi
 local minimized = false
 MinBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
     if minimized then
-        MainFrame:TweenSize(UDim2.new(0, 520, 0, 45), "Out", "Quad", 0.3)
+        TweenService:Create(MainFrame, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 520, 0, 48)
+        }):Play()
         TabContainer.Visible = false
         PageContainer.Visible = false
         Separator.Visible = false
         MinBtn.Text = "□"
     else
-        MainFrame:TweenSize(UDim2.new(0, 520, 0, 420), "Out", "Quad", 0.3)
+        TweenService:Create(MainFrame, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 520, 0, 420)
+        }):Play()
+        task.wait(0.35)
         TabContainer.Visible = true
         PageContainer.Visible = true
         Separator.Visible = true
-        MinBtn.Text = "-"
+        MinBtn.Text = "−"
     end
 end)
 
 -- Kapat
 CloseBtn.MouseButton1Click:Connect(function()
+    TweenService:Create(MainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+        BackgroundTransparency = 1
+    }):Play()
+    task.wait(0.2)
     ScreenGui:Destroy()
 end)
 
 -- Hover efektleri
 CloseBtn.MouseEnter:Connect(function()
-    TweenService:Create(CloseBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(200, 50, 50)}):Play()
+    TweenService:Create(CloseBtn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(200, 50, 50)}):Play()
 end)
 CloseBtn.MouseLeave:Connect(function()
-    TweenService:Create(CloseBtn, TweenInfo.new(0.15), {BackgroundColor3 = Theme.ButtonBg}):Play()
+    TweenService:Create(CloseBtn, TweenInfo.new(0.1), {BackgroundColor3 = Theme.ButtonBg}):Play()
 end)
 
 MinBtn.MouseEnter:Connect(function()
-    TweenService:Create(MinBtn, TweenInfo.new(0.15), {BackgroundColor3 = Theme.ButtonHover}):Play()
+    TweenService:Create(MinBtn, TweenInfo.new(0.1), {BackgroundColor3 = Theme.ButtonHover}):Play()
 end)
 MinBtn.MouseLeave:Connect(function()
-    TweenService:Create(MinBtn, TweenInfo.new(0.15), {BackgroundColor3 = Theme.ButtonBg}):Play()
+    TweenService:Create(MinBtn, TweenInfo.new(0.1), {BackgroundColor3 = Theme.ButtonBg}):Play()
 end)
 
 -- ============================================
@@ -281,12 +413,12 @@ function LuaWare:Window(options)
     local scriptName = options.ScriptName or "LuaWare"
     local themeName = options.Theme or "Rise"
     
-    -- Tema güncelleme
     if Themes[themeName] then
         CurrentTheme = themeName
         Theme = Themes[themeName]
     end
     
+    -- UI güncelleme
     Title.Text = scriptName
     MainFrame.BackgroundColor3 = Theme.Main
     TitleBar.BackgroundColor3 = Theme.TitleBar
@@ -299,7 +431,6 @@ function LuaWare:Window(options)
     local window = {}
     
     function window:Tab(tabName, pageTitle)
-        -- Sekme Butonu
         local TabBtn = Instance.new("TextButton")
         TabBtn.Size = UDim2.new(1, -20, 0, 38)
         TabBtn.Position = UDim2.new(0, 10, 0, 0)
@@ -314,10 +445,9 @@ function LuaWare:Window(options)
         TabCorner.CornerRadius = UDim.new(0, 8)
         TabCorner.Parent = TabBtn
         
-        -- Hover efekti
         TabBtn.MouseEnter:Connect(function()
             if TabBtn.BackgroundColor3 ~= Theme.TabActive then
-                TweenService:Create(TabBtn, TweenInfo.new(0.15), {BackgroundColor3 = Theme.TabInactive:lerp(Theme.TabActive, 0.3)}):Play()
+                TweenService:Create(TabBtn, TweenInfo.new(0.15), {BackgroundColor3 = Theme.TabInactive:lerp(Theme.TabActive, 0.2)}):Play()
             end
         end)
         TabBtn.MouseLeave:Connect(function()
@@ -326,7 +456,6 @@ function LuaWare:Window(options)
             end
         end)
         
-        -- Sayfa
         local Page = Instance.new("ScrollingFrame")
         Page.Size = UDim2.new(1, 0, 1, 0)
         Page.BackgroundTransparency = 1
@@ -338,7 +467,7 @@ function LuaWare:Window(options)
         
         local Content = Instance.new("Frame")
         Content.Size = UDim2.new(1, -20, 0, 0)
-        Content.Position = UDim2.new(0, 10, 0, 10)
+        Content.Position = UDim2.new(0, 12, 0, 12)
         Content.BackgroundTransparency = 1
         Content.AutomaticSize = Enum.AutomaticSize.Y
         
@@ -347,10 +476,9 @@ function LuaWare:Window(options)
         ContentLayout.Padding = UDim.new(0, 8)
         ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
         
-        -- Sayfa başlığı
         if pageTitle then
             local PageTitle = Instance.new("TextLabel")
-            PageTitle.Size = UDim2.new(1, 0, 0, 35)
+            PageTitle.Size = UDim2.new(1, 0, 0, 38)
             PageTitle.BackgroundTransparency = 1
             PageTitle.Text = pageTitle
             PageTitle.TextColor3 = Theme.PageTitle
@@ -363,14 +491,12 @@ function LuaWare:Window(options)
         Content.Parent = Page
         Page.Parent = PageContainer
         
-        -- Canvas güncelleme
         local function updateCanvas()
             Page.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y + 20)
         end
         ContentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateCanvas)
         updateCanvas()
         
-        -- İlk sekme aktif
         if firstTab then
             firstTab = false
             TabBtn.BackgroundColor3 = Theme.TabActive
@@ -405,12 +531,12 @@ function LuaWare:Window(options)
         
         function elements:Section(title)
             local section = Instance.new("TextLabel")
-            section.Size = UDim2.new(1, 0, 0, 25)
+            section.Size = UDim2.new(1, 0, 0, 28)
             section.BackgroundTransparency = 1
             section.Text = title
             section.TextColor3 = Theme.TextPrimary
             section.Font = Enum.Font.GothamBold
-            section.TextSize = 16
+            section.TextSize = 17
             section.TextXAlignment = Enum.TextXAlignment.Left
             section.Parent = Content
             updateCanvas()
@@ -430,18 +556,18 @@ function LuaWare:Window(options)
         
         function elements:Label(text, desc)
             local frame = Instance.new("Frame")
-            frame.Size = UDim2.new(1, 0, 0, desc and 55 or 40)
+            frame.Size = UDim2.new(1, 0, 0, desc and 55 or 42)
             frame.BackgroundColor3 = Theme.ItemBg
-            frame.BackgroundTransparency = 0.2
+            frame.BackgroundTransparency = 0.15
             frame.BorderSizePixel = 0
             
             local corner = Instance.new("UICorner")
-            corner.CornerRadius = UDim.new(0, 8)
+            corner.CornerRadius = UDim.new(0, 10)
             corner.Parent = frame
             
             local title = Instance.new("TextLabel")
             title.Size = UDim2.new(1, -20, 0, 22)
-            title.Position = UDim2.new(0, 15, 0, 5)
+            title.Position = UDim2.new(0, 15, 0, 6)
             title.BackgroundTransparency = 1
             title.Text = text
             title.TextColor3 = Theme.TextPrimary
@@ -450,10 +576,11 @@ function LuaWare:Window(options)
             title.TextXAlignment = Enum.TextXAlignment.Left
             title.Parent = frame
             
+            local descLabel = nil
             if desc then
-                local descLabel = Instance.new("TextLabel")
+                descLabel = Instance.new("TextLabel")
                 descLabel.Size = UDim2.new(1, -20, 0, 18)
-                descLabel.Position = UDim2.new(0, 15, 0, 27)
+                descLabel.Position = UDim2.new(0, 15, 0, 28)
                 descLabel.BackgroundTransparency = 1
                 descLabel.Text = desc
                 descLabel.TextColor3 = Theme.TextSecondary
@@ -479,11 +606,11 @@ function LuaWare:Window(options)
             local frame = Instance.new("Frame")
             frame.Size = UDim2.new(1, 0, 0, desc and 58 or 48)
             frame.BackgroundColor3 = Theme.ItemBg
-            frame.BackgroundTransparency = 0.2
+            frame.BackgroundTransparency = 0.15
             frame.BorderSizePixel = 0
             
             local corner = Instance.new("UICorner")
-            corner.CornerRadius = UDim.new(0, 8)
+            corner.CornerRadius = UDim.new(0, 10)
             corner.Parent = frame
             
             local title = Instance.new("TextLabel")
@@ -527,17 +654,17 @@ function LuaWare:Window(options)
             btn.MouseButton1Click:Connect(callback)
             
             btn.MouseEnter:Connect(function()
-                TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Theme.ButtonHover}):Play()
+                TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Theme.ButtonHover}):Play()
             end)
             btn.MouseLeave:Connect(function()
-                TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Theme.ButtonBg}):Play()
+                TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Theme.ButtonBg}):Play()
             end)
             
             frame.MouseEnter:Connect(function()
-                TweenService:Create(frame, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
+                TweenService:Create(frame, TweenInfo.new(0.18), {BackgroundTransparency = 0}):Play()
             end)
             frame.MouseLeave:Connect(function()
-                TweenService:Create(frame, TweenInfo.new(0.2), {BackgroundTransparency = 0.2}):Play()
+                TweenService:Create(frame, TweenInfo.new(0.18), {BackgroundTransparency = 0.15}):Play()
             end)
             
             frame.Parent = Content
@@ -561,11 +688,11 @@ function LuaWare:Window(options)
             local frame = Instance.new("Frame")
             frame.Size = UDim2.new(1, 0, 0, desc and 58 or 48)
             frame.BackgroundColor3 = Theme.ItemBg
-            frame.BackgroundTransparency = 0.2
+            frame.BackgroundTransparency = 0.15
             frame.BorderSizePixel = 0
             
             local corner = Instance.new("UICorner")
-            corner.CornerRadius = UDim.new(0, 8)
+            corner.CornerRadius = UDim.new(0, 10)
             corner.Parent = frame
             
             local title = Instance.new("TextLabel")
@@ -593,8 +720,8 @@ function LuaWare:Window(options)
             end
             
             local toggleBg = Instance.new("Frame")
-            toggleBg.Size = UDim2.new(0, 46, 0, 24)
-            toggleBg.Position = UDim2.new(1, -60, 0.5, -12)
+            toggleBg.Size = UDim2.new(0, 48, 0, 24)
+            toggleBg.Position = UDim2.new(1, -62, 0.5, -12)
             toggleBg.BackgroundColor3 = state and Theme.ToggleOn or Theme.ToggleOff
             toggleBg.BorderSizePixel = 0
             toggleBg.Parent = frame
@@ -617,13 +744,13 @@ function LuaWare:Window(options)
             local function updateState(newState)
                 state = newState
                 if state then
-                    toggleBg.BackgroundColor3 = Theme.ToggleOn
-                    toggleCircle.Position = UDim2.new(1, -22, 0.5, -10)
-                    title.TextColor3 = Theme.ToggleOn
+                    TweenService:Create(toggleBg, TweenInfo.new(0.15), {BackgroundColor3 = Theme.ToggleOn}):Play()
+                    TweenService:Create(toggleCircle, TweenInfo.new(0.15), {Position = UDim2.new(1, -22, 0.5, -10)}):Play()
+                    TweenService:Create(title, TweenInfo.new(0.15), {TextColor3 = Theme.ToggleOn}):Play()
                 else
-                    toggleBg.BackgroundColor3 = Theme.ToggleOff
-                    toggleCircle.Position = UDim2.new(0, 2, 0.5, -10)
-                    title.TextColor3 = Theme.TextPrimary
+                    TweenService:Create(toggleBg, TweenInfo.new(0.15), {BackgroundColor3 = Theme.ToggleOff}):Play()
+                    TweenService:Create(toggleCircle, TweenInfo.new(0.15), {Position = UDim2.new(0, 2, 0.5, -10)}):Play()
+                    TweenService:Create(title, TweenInfo.new(0.15), {TextColor3 = Theme.TextPrimary}):Play()
                 end
                 callback(state)
             end
@@ -636,10 +763,10 @@ function LuaWare:Window(options)
             toggleBg.MouseButton1Click:Connect(onClick)
             
             frame.MouseEnter:Connect(function()
-                TweenService:Create(frame, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play()
+                TweenService:Create(frame, TweenInfo.new(0.18), {BackgroundTransparency = 0}):Play()
             end)
             frame.MouseLeave:Connect(function()
-                TweenService:Create(frame, TweenInfo.new(0.2), {BackgroundTransparency = 0.2}):Play()
+                TweenService:Create(frame, TweenInfo.new(0.18), {BackgroundTransparency = 0.15}):Play()
             end)
             
             frame.Parent = Content
@@ -665,14 +792,6 @@ function LuaWare:Destroy()
     ScreenGui:Destroy()
 end
 
-function LuaWare:SetTheme(themeName)
-    if Themes[themeName] then
-        CurrentTheme = themeName
-        Theme = Themes[themeName]
-        print("[LuaWare] Theme changed to:", themeName)
-    end
-end
-
 -- ============================================
 -- KEYBIND (RightShift)
 -- ============================================
@@ -686,14 +805,17 @@ end)
 -- BAŞARI MESAJI
 -- ============================================
 print([[
-╔═══════════════════════════════════════╗
-║                                       ║
-║    LUAWARE UI v2.2                    ║
-║    Basarili bir sekilde yuklendi!     ║
-║                                       ║
-║    RightShift ile menuyu ac/kapat     ║
-║                                       ║
-╚═══════════════════════════════════════╝
+╔════════════════════════════════════════╗
+║                                        ║
+║    LUAWARE UI v3.0                     ║
+║    SUPER SMOOTH DRAG                   ║
+║                                        ║
+║    Menuyu basliktan tutup cek!         ║
+║    Yumusacik hissedeceksin!            ║
+║                                        ║
+║    RightShift ile ac/kapat             ║
+║                                        ║
+╚════════════════════════════════════════╝
 ]])
 
 return LuaWare
