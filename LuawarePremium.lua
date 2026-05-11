@@ -1,7 +1,7 @@
 --[[
-    LUAWARE SCRIPT - FULL FRAMEWORK API
+    LUAWARE SCRIPT - PREMIUM FRAMEWORK (V1)
     YAPIMCI: NOXYORJ
-    Durum: %100 API (Tüm elementler desteklenir), Resim Fixleyici (AssetThumb) eklendi.
+    Özellikler: Rayfield Intro, Anlık Profil Güncelleyici, %100 API Mimarisi
 ]]
 
 local UserInputService = game:GetService("UserInputService")
@@ -29,6 +29,7 @@ local function MakeSmoothDraggable(dragObject, targetObject)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true; dragStart = input.Position; startPos = targetObject.Position
             lastPos = input.Position; lastTime = tick(); velocity = Vector2.new()
+            
             dragConn = UserInputService.InputChanged:Connect(function(input)
                 if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
                     local now = tick(); local dt = now - lastTime
@@ -39,6 +40,7 @@ local function MakeSmoothDraggable(dragObject, targetObject)
                     }):Play()
                 end
             end)
+            
             local releaseConn; releaseConn = UserInputService.InputEnded:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 then
                     dragging = false; if dragConn then dragConn:Disconnect() end; releaseConn:Disconnect()
@@ -58,9 +60,36 @@ function Luaware:Window(Config)
 
     local sg = Instance.new("ScreenGui", CoreGui); sg.Name = "LuawareScriptUI"; sg.ResetOnSpawn = false
 
-    local Main = Instance.new("Frame", sg)
+    -- =======================================
+    -- RAYFIELD INTRO (AÇILIŞ EKRANI)
+    -- =======================================
+    local IntroGroup = Instance.new("CanvasGroup", sg)
+    IntroGroup.Size = UDim2.new(0, 320, 0, 180); IntroGroup.Position = UDim2.new(0.5, -160, 0.5, -90)
+    IntroGroup.BackgroundColor3 = Theme.Main; IntroGroup.BorderSizePixel = 0
+    Instance.new("UICorner", IntroGroup).CornerRadius = UDim.new(0, 8)
+    local iStroke = Instance.new("UIStroke", IntroGroup); iStroke.Color = Theme.TopLine; iStroke.Thickness = 1
+
+    local IntroTitle = Instance.new("TextLabel", IntroGroup)
+    IntroTitle.Size = UDim2.new(1, 0, 0, 50); IntroTitle.Position = UDim2.new(0, 0, 0, 20); IntroTitle.BackgroundTransparency = 1
+    IntroTitle.Text = Config.Name or "LuaWare Script"; IntroTitle.TextColor3 = Theme.Text; IntroTitle.Font = Enum.Font.GothamBlack; IntroTitle.TextSize = 22
+
+    local IntroDesc = Instance.new("TextLabel", IntroGroup)
+    IntroDesc.Size = UDim2.new(1, 0, 0, 20); IntroDesc.Position = UDim2.new(0, 0, 0, 60); IntroDesc.BackgroundTransparency = 1
+    IntroDesc.Text = "Please select your language"; IntroDesc.TextColor3 = Theme.SubText; IntroDesc.Font = Enum.Font.Gotham; IntroDesc.TextSize = 12
+
+    local LangContainer = Instance.new("Frame", IntroGroup)
+    LangContainer.Size = UDim2.new(1, 0, 0, 50); LangContainer.Position = UDim2.new(0, 0, 0, 100); LangContainer.BackgroundTransparency = 1
+
+    -- Animasyonla Giriş
+    IntroGroup.GroupTransparency = 1; IntroGroup.Size = UDim2.new(0, 280, 0, 150)
+    TweenService:Create(IntroGroup, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {GroupTransparency = 0, Size = UDim2.new(0, 320, 0, 180)}):Play()
+
+    -- =======================================
+    -- ANA PENCERE (Başlangıçta Gizli)
+    -- =======================================
+    local Main = Instance.new("CanvasGroup", sg)
     Main.Size = UDim2.new(0, 520, 0, 320); Main.Position = UDim2.new(0.5, -260, 0.5, -160)
-    Main.BackgroundColor3 = Theme.Main; Main.BorderSizePixel = 0
+    Main.BackgroundColor3 = Theme.Main; Main.BorderSizePixel = 0; Main.GroupTransparency = 1; Main.Visible = false
     Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 6)
     local stroke = Instance.new("UIStroke", Main); stroke.Color = Theme.TopLine; stroke.Thickness = 1
 
@@ -88,6 +117,20 @@ function Luaware:Window(Config)
 
     local WindowObj = {}; local Tabs, Pages, isFirst = {}, {}, true
 
+    -- Dil Seçimi Butonları
+    local function SetupLanguage(btnName, posScale)
+        local btn = Instance.new("TextButton", LangContainer)
+        btn.Size = UDim2.new(0, 100, 0, 35); btn.Position = UDim2.new(posScale, -50, 0, 0); btn.BackgroundColor3 = Theme.Card
+        btn.Text = btnName; btn.TextColor3 = Theme.Text; btn.Font = Enum.Font.GothamBold; btn.TextSize = 12
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6); Instance.new("UIStroke", btn).Color = Theme.TopLine
+        btn.MouseButton1Click:Connect(function()
+            TweenService:Create(IntroGroup, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {GroupTransparency = 1, Size = UDim2.new(0, 280, 0, 150)}):Play()
+            task.wait(0.4); IntroGroup:Destroy(); Main.Visible = true
+            TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {GroupTransparency = 0}):Play()
+        end)
+    end
+    SetupLanguage("TÜRKÇE", 0.3); SetupLanguage("ENGLISH", 0.7)
+
     function WindowObj:Tab(name)
         local TabBtn = Instance.new("TextButton", TabList)
         TabBtn.Size = UDim2.new(1, 0, 0, 28); TabBtn.BackgroundColor3 = isFirst and Theme.TabActive or Theme.Main; TabBtn.BackgroundTransparency = isFirst and 0 or 1
@@ -108,7 +151,9 @@ function Luaware:Window(Config)
 
         local Elements = {}
 
-        -- 1. PROFİL MODÜLÜ
+        -- =======================================
+        -- ANLIK GÜNCELLENEN PROFİL MODÜLÜ (HOME)
+        -- =======================================
         function Elements:AddProfile()
             local PFrame = Instance.new("Frame", Page)
             PFrame.Size = UDim2.new(1, 0, 0, 180); PFrame.BackgroundTransparency = 1
@@ -133,23 +178,46 @@ function Luaware:Window(Config)
             local InfoText = Instance.new("TextLabel", PFrame)
             InfoText.Size = UDim2.new(1, 0, 0, 150); InfoText.Position = UDim2.new(0, 0, 0, 85); InfoText.BackgroundTransparency = 1
             InfoText.TextColor3 = Theme.Text; InfoText.Font = Enum.Font.GothamBold; InfoText.TextSize = 11; InfoText.TextXAlignment = Enum.TextXAlignment.Left; InfoText.TextYAlignment = Enum.TextYAlignment.Top
-            InfoText.RichText = true; InfoText.LineHeight = 1.3
+            InfoText.RichText = true; InfoText.LineHeight = 1.4
 
+            -- OYUN ADINI VE EXECUTOR'U BİR KERE AL
             local execName = identifyexecutor and identifyexecutor() or "Xeno"
-            local gameName = "LuaWare Script Aktif"
+            local gameName = "Bilinmiyor"
             pcall(function() gameName = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name end)
 
-            InfoText.Text = string.format("Roblox User Name: <font color='rgb(180,180,180)'>%s</font>\nGame Id: <font color='rgb(180,180,180)'>%d</font>\nGame Name: 🟢 <font color='rgb(180,180,180)'>%s</font>\nPlace Id: <font color='rgb(180,180,180)'>%d</font>\nServer: <font color='rgb(180,180,180)'>Aktif</font>\nExecutor: <font color='rgb(255,80,80)'>%s</font>\nExecutor Level: <font color='rgb(255,80,80)'>3</font>", LocalPlayer.Name, game.GameId, gameName, game.PlaceId, execName)
+            -- ANLIK GÜNCELLEME DÖNGÜSÜ
+            local function UpdateProfileInfo()
+                local playersInServer = #Players:GetPlayers()
+                local maxPlayers = Players.MaxPlayers
+                InfoText.Text = string.format(
+                    "Roblox User Name: <font color='rgb(180,180,180)'>%s</font>\n" ..
+                    "Game Id: <font color='rgb(180,180,180)'>%d</font>\n" ..
+                    "Game Name: 🎮 <font color='rgb(180,180,180)'>%s</font>\n" ..
+                    "Place Id: <font color='rgb(180,180,180)'>%d</font>\n" ..
+                    "Server: 👥 <font color='rgb(180,180,180)'>%d / %d</font>\n" ..
+                    "Executor: <font color='rgb(255,80,80)'>%s</font>\n" ..
+                    "Executor Level: <font color='rgb(255,80,80)'>3</font>", 
+                    LocalPlayer.Name, game.GameId, gameName, game.PlaceId, playersInServer, maxPlayers, execName
+                )
+            end
+            
+            UpdateProfileInfo() -- İlk çalıştır
+            task.spawn(function()
+                while task.wait(1) do
+                    if InfoText.Parent then UpdateProfileInfo() else break end
+                end
+            end)
         end
 
-        -- 2. BAŞLIK MODÜLÜ
         function Elements:AddSection(txt)
             local lbl = Instance.new("TextLabel", Page)
             lbl.Size = UDim2.new(1, 0, 0, 25); lbl.BackgroundTransparency = 1; lbl.Text = txt
             lbl.TextColor3 = Theme.Text; lbl.Font = Enum.Font.GothamBold; lbl.TextSize = 12; lbl.TextXAlignment = Enum.TextXAlignment.Left
         end
 
-        -- 3. OYUN KARTI (RESİM ÇÖZÜCÜ EKLENDİ)
+        -- =======================================
+        -- OYUN KARTI MODÜLÜ (RESİM SORUNU ÇÖZÜLDÜ)
+        -- =======================================
         function Elements:AddGameCard(Config)
             local cF = Instance.new("Frame", Page)
             cF.Size = UDim2.new(1, -5, 0, 75); cF.BackgroundColor3 = Theme.Card; cF.BorderSizePixel = 0
@@ -159,7 +227,7 @@ function Luaware:Window(Config)
             local img = Instance.new("ImageLabel", cF)
             img.Size = UDim2.new(0, 55, 0, 55); img.Position = UDim2.new(0, 10, 0.5, -27); img.BackgroundColor3 = Theme.Main
             
-            -- RESİM FİXLEYİCİ: Eğer dışarıdan ID verilirse, onu Roblox Asset'e çevirir (Decal sorununu çözer!)
+            -- ASSET THUMB ÇEVİRİCİ: Decal ID'yi Image ID'ye dönüştürür (Bembeyaz ekranı çözer!)
             if Config.ImageId then
                 img.Image = "rbxthumb://type=Asset&id=" .. Config.ImageId .. "&w=150&h=150"
             else
@@ -177,38 +245,21 @@ function Luaware:Window(Config)
             detail.Size = UDim2.new(1, -160, 0, 15); detail.Position = UDim2.new(0, 75, 0, 30); detail.BackgroundTransparency = 1
             detail.Text = Config.Update or "Dev: noxyorj"; detail.TextColor3 = Theme.SubText; detail.Font = Enum.Font.GothamBold; detail.TextSize = 11; detail.TextXAlignment = Enum.TextXAlignment.Left
 
-            if Config.KeyLink then
-                local btn = Instance.new("TextButton", cF)
-                btn.Size = UDim2.new(0, 65, 0, 24); btn.Position = UDim2.new(1, -75, 0.5, -12); btn.BackgroundColor3 = Theme.Main
-                btn.Text = "Key Al"; btn.TextColor3 = Theme.Text; btn.Font = Enum.Font.GothamBold; btn.TextSize = 11
-                Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4); Instance.new("UIStroke", btn).Color = Theme.TopLine
-                btn.MouseButton1Click:Connect(function()
-                    setclipboard(Config.KeyLink)
-                    btn.Text = "Kopyalandı!"; task.wait(1); btn.Text = "Key Al"
+            -- ÇALIŞTIR BUTONU (Sadece Callback Verilmişse Çıkar)
+            if Config.Callback then
+                local loadBtnFrame = Instance.new("Frame", cF)
+                loadBtnFrame.Size = UDim2.new(0, 65, 0, 24); loadBtnFrame.Position = UDim2.new(1, -75, 0.5, -12); loadBtnFrame.BackgroundColor3 = Theme.Main
+                Instance.new("UICorner", loadBtnFrame).CornerRadius = UDim.new(0, 4); Instance.new("UIStroke", loadBtnFrame).Color = Theme.TopLine
+                
+                local loadBtn = Instance.new("TextButton", loadBtnFrame)
+                loadBtn.Size = UDim2.new(1, 0, 1, 0); loadBtn.BackgroundTransparency = 1; loadBtn.Text = "Çalıştır"; loadBtn.TextColor3 = Theme.Working; loadBtn.Font = Enum.Font.GothamBold; loadBtn.TextSize = 11
+                
+                loadBtn.MouseButton1Click:Connect(function()
+                    TweenService:Create(loadBtnFrame, TweenInfo.new(0.1), {BackgroundColor3 = Theme.TopLine}):Play()
+                    task.wait(0.1); TweenService:Create(loadBtnFrame, TweenInfo.new(0.1), {BackgroundColor3 = Theme.Main}):Play()
+                    Config.Callback()
                 end)
             end
-
-            local loadBtn = Instance.new("TextButton", cF)
-            loadBtn.Size = UDim2.new(1, -85, 1, 0); loadBtn.BackgroundTransparency = 1; loadBtn.Text = ""
-            loadBtn.MouseButton1Click:Connect(function()
-                if Config.Callback then Config.Callback() end
-            end)
-        end
-
-        -- 4. TOGGLE, BUTON, SLIDER (HER ŞEYİ DESTEKLER)
-        function Elements:AddToggle(txt, cb)
-            local btn = Instance.new("TextButton", Page)
-            btn.Size = UDim2.new(1, -5, 0, 35); btn.BackgroundColor3 = Theme.Card; btn.Text = "  " .. txt
-            btn.TextColor3 = Theme.Text; btn.Font = Enum.Font.GothamBold; btn.TextSize = 12; btn.TextXAlignment = Enum.TextXAlignment.Left
-            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
-            local state = false
-            local indicator = Instance.new("Frame", btn)
-            indicator.Size = UDim2.new(0, 10, 0, 10); indicator.Position = UDim2.new(1, -20, 0.5, -5)
-            indicator.BackgroundColor3 = Theme.SubText; Instance.new("UICorner", indicator).CornerRadius = UDim.new(1,0)
-            btn.MouseButton1Click:Connect(function()
-                state = not state; indicator.BackgroundColor3 = state and Theme.Working or Theme.SubText
-                if cb then cb(state) end
-            end)
         end
 
         return Elements
