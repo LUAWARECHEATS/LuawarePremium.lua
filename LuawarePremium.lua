@@ -1,7 +1,7 @@
 --[[
-    LUAWARE SCRIPT - PREMIUM FRAMEWORK (V1)
+    LUAWARE SCRIPT - THE EXACT HAWK FRAMEWORK
     YAPIMCI: NOXYORJ
-    Özellikler: %100 Clean Düzen, Sorunsuz Intro, Orijinal Boyut (592x451), GameIcon Çekici
+    Özellikler: Birebir 592x451 Boyut, Pürüzsüz Drag, Clean Düzen, Sorunsuz Intro
 ]]
 
 local UserInputService = game:GetService("UserInputService")
@@ -12,7 +12,6 @@ local CoreGui = LocalPlayer:WaitForChild("PlayerGui")
 
 local Luaware = {}
 
--- ORİJİNAL HAWK CLEAN TEMA
 local Theme = {
     Main = Color3.fromRGB(25, 25, 30),
     TitleBar = Color3.fromRGB(30, 30, 35),
@@ -23,41 +22,43 @@ local Theme = {
     SubText = Color3.fromRGB(180, 180, 190),
     Working = Color3.fromRGB(80, 200, 80),
     DateBlue = Color3.fromRGB(80, 200, 220),
-    Accent = Color3.fromRGB(255, 70, 85) -- Sadece küçük detaylar için
+    Accent = Color3.fromRGB(255, 70, 85)
 }
 
--- ORİJİNAL YUMUŞAK SÜRÜKLEME (0.2s Tween)
+-- ORİJİNAL HAWK DRAG MOTORU (Çok daha yumuşak)
 local function MakeSmoothDraggable(dragObject, targetObject)
-    local Dragging, DragInput, DragStart, StartPosition
-    local function Update(input)
-        local Delta = input.Position - DragStart
-        local pos = UDim2.new(StartPosition.X.Scale, StartPosition.X.Offset + Delta.X, StartPosition.Y.Scale, StartPosition.Y.Offset + Delta.Y)
-        TweenService:Create(targetObject, TweenInfo.new(0.2), {Position = pos}):Play()
-    end
+    local Dragging, DragInput, DragStart, StartPos
     dragObject.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            Dragging = true; DragStart = input.Position; StartPosition = targetObject.Position
-            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then Dragging = false end end)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            Dragging = true; DragStart = input.Position; StartPos = targetObject.Position
         end
     end)
-    dragObject.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then DragInput = input end
+    UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then DragInput = input end
     end)
     UserInputService.InputChanged:Connect(function(input)
-        if input == DragInput and Dragging then Update(input) end
+        if input == DragInput and Dragging then
+            local Delta = input.Position - DragStart
+            TweenService:Create(targetObject, TweenInfo.new(0.12, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+                Position = UDim2.new(StartPos.X.Scale, StartPos.X.Offset + Delta.X, StartPos.Y.Scale, StartPos.Y.Offset + Delta.Y)
+            }):Play()
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then Dragging = false end
     end)
 end
 
 function Luaware:Window(Config)
-    for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "LuawareScriptUI" then v:Destroy() end end
-    local sg = Instance.new("ScreenGui", CoreGui); sg.Name = "LuawareScriptUI"; sg.ResetOnSpawn = false
+    for _, v in pairs(CoreGui:GetChildren()) do if v.Name == "LuawareUI" then v:Destroy() end end
+    local sg = Instance.new("ScreenGui", CoreGui); sg.Name = "LuawareUI"; sg.ResetOnSpawn = false
 
     -- =======================================
-    -- RAYFIELD INTRO (Sorunsuz)
+    -- RAYFIELD INTRO (BUG DÜZELTİLDİ)
     -- =======================================
-    local IntroGroup = Instance.new("CanvasGroup", sg)
+    local IntroGroup = Instance.new("Frame", sg)
     IntroGroup.Size = UDim2.new(0, 320, 0, 180); IntroGroup.Position = UDim2.new(0.5, -160, 0.5, -90)
-    IntroGroup.BackgroundColor3 = Theme.Main; IntroGroup.BorderSizePixel = 0
+    IntroGroup.BackgroundColor3 = Theme.Main; IntroGroup.BorderSizePixel = 0; IntroGroup.ClipsDescendants = true
     Instance.new("UICorner", IntroGroup).CornerRadius = UDim.new(0, 8)
     local iStroke = Instance.new("UIStroke", IntroGroup); iStroke.Color = Theme.TitleBar; iStroke.Thickness = 2
 
@@ -72,21 +73,21 @@ function Luaware:Window(Config)
     local LangContainer = Instance.new("Frame", IntroGroup)
     LangContainer.Size = UDim2.new(1, 0, 0, 50); LangContainer.Position = UDim2.new(0, 0, 0, 100); LangContainer.BackgroundTransparency = 1
 
-    IntroGroup.GroupTransparency = 1; IntroGroup.Size = UDim2.new(0, 280, 0, 150)
-    TweenService:Create(IntroGroup, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {GroupTransparency = 0, Size = UDim2.new(0, 320, 0, 180)}):Play()
-
     -- =======================================
-    -- ANA PENCERE (Başlangıçta KESİNLİKLE Gizli)
+    -- ANA PENCERE (Başlangıçta GİZLİ)
     -- =======================================
-    local Main = Instance.new("CanvasGroup", sg)
+    local Main = Instance.new("Frame", sg)
     Main.Size = UDim2.new(0, 592, 0, 451); Main.Position = UDim2.new(0.5, -296, 0.5, -225)
     Main.BackgroundColor3 = Theme.Main; Main.BorderSizePixel = 0
-    Main.GroupTransparency = 1
-    Main.Visible = false -- İşte menünün erken gelmesini engelleyen kilit kod!
+    Main.Visible = false -- KESİN GİZLİLİK
     Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
+    local mainStroke = Instance.new("UIStroke", Main); mainStroke.Color = Theme.TitleBar; mainStroke.Thickness = 1
     
     local TopBar = Instance.new("Frame", Main)
     TopBar.Size = UDim2.new(1, 0, 0, 33); TopBar.BackgroundColor3 = Theme.TitleBar; TopBar.BorderSizePixel = 0
+    Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 8)
+    local fix = Instance.new("Frame", TopBar); fix.Size = UDim2.new(1, 0, 0, 10); fix.Position = UDim2.new(0,0,1,-10); fix.BackgroundColor3 = Theme.TitleBar; fix.BorderSizePixel = 0
+    
     local TitleLbl = Instance.new("TextLabel", TopBar)
     TitleLbl.Size = UDim2.new(0, 200, 1, 0); TitleLbl.Position = UDim2.new(0, 35, 0, 0); TitleLbl.BackgroundTransparency = 1
     TitleLbl.Text = Config.Name or "LuaWare Script"; TitleLbl.TextColor3 = Theme.Text; TitleLbl.Font = Enum.Font.GothamBold; TitleLbl.TextSize = 13; TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -110,34 +111,31 @@ function Luaware:Window(Config)
 
     local WindowObj = {}; local Tabs, Pages, isFirst = {}, {}, true
 
-    -- =======================================
-    -- DİL SEÇİMİ VE ANA MENÜYE GEÇİŞ
-    -- =======================================
+    -- Intro Animasyonu
+    IntroGroup.Size = UDim2.new(0, 280, 0, 150)
+    TweenService:Create(IntroGroup, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 320, 0, 180)}):Play()
+
+    -- DİL SEÇİMİ
     local function SetupLanguage(btnName, posScale)
         local btn = Instance.new("TextButton", LangContainer)
         btn.Size = UDim2.new(0, 100, 0, 35); btn.Position = UDim2.new(posScale, -50, 0, 0); btn.BackgroundColor3 = Theme.Card
         btn.Text = btnName; btn.TextColor3 = Theme.Text; btn.Font = Enum.Font.GothamBold; btn.TextSize = 12
-        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-        
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6); Instance.new("UIStroke", btn).Color = Theme.TitleBar
         btn.MouseButton1Click:Connect(function()
-            -- Intro'yu Kapat
-            TweenService:Create(IntroGroup, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {GroupTransparency = 1, Size = UDim2.new(0, 280, 0, 150)}):Play()
-            task.wait(0.4)
-            IntroGroup.Visible = false
+            TweenService:Create(IntroGroup, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Size = UDim2.new(0, 280, 0, 150), BackgroundTransparency = 1}):Play()
+            task.wait(0.3); IntroGroup:Destroy()
             
-            -- Ana Menüyü Aç
+            Main.Size = UDim2.new(0, 500, 0, 380)
             Main.Visible = true
-            TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {GroupTransparency = 0}):Play()
+            TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 592, 0, 451)}):Play()
         end)
     end
     SetupLanguage("TÜRKÇE", 0.3); SetupLanguage("ENGLISH", 0.7)
 
-    -- =======================================
-    -- API BİLEŞENLERİ
-    -- =======================================
+    -- SEKMELER
     function WindowObj:Tab(name)
         local TabBtn = Instance.new("TextButton", TabContainer)
-        TabBtn.Size = UDim2.new(0, 150, 0, 34); TabBtn.BackgroundColor3 = isFirst and Theme.TabAfter or Theme.TabBefore; TabBtn.BorderSizePixel = 0
+        TabBtn.Size = UDim2.new(1, -10, 0, 32); TabBtn.Position = UDim2.new(0, 5, 0, 0); TabBtn.BackgroundColor3 = isFirst and Theme.TabAfter or Theme.TabBefore; TabBtn.BorderSizePixel = 0
         TabBtn.Text = "   " .. name; TabBtn.TextColor3 = isFirst and Theme.Text or Theme.SubText; TabBtn.Font = Enum.Font.GothamBold; TabBtn.TextSize = 13; TabBtn.TextXAlignment = Enum.TextXAlignment.Left
         Instance.new("UICorner", TabBtn).CornerRadius = UDim.new(0, 6)
 
@@ -146,20 +144,20 @@ function Luaware:Window(Config)
         Instance.new("UICorner", Selection).CornerRadius = UDim.new(1, 0)
 
         local Page = Instance.new("ScrollingFrame", Content)
-        Page.Size = UDim2.new(1, 0, 1, 0); Page.BackgroundTransparency = 1; Page.ScrollBarThickness = 2; Page.ScrollBarImageColor3 = Theme.Accent; Page.Visible = isFirst
+        Page.Size = UDim2.new(1, 0, 1, 0); Page.BackgroundTransparency = 1; Page.ScrollBarThickness = 0; Page.Visible = isFirst
         Instance.new("UIListLayout", Page).Padding = UDim.new(0, 8); Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
 
         table.insert(Tabs, TabBtn); table.insert(Pages, Page); isFirst = false
 
         TabBtn.MouseButton1Click:Connect(function()
             for _, p in pairs(Pages) do p.Visible = false end
-            for _, t in pairs(Tabs) do t.BackgroundColor3 = Theme.TabBefore; t.TextColor3 = Theme.SubText; t:FindFirstChild("Selection").BackgroundTransparency = 1 end
+            for _, t in pairs(Tabs) do t.BackgroundColor3 = Theme.TabBefore; t.TextColor3 = Theme.SubText; t:FindFirstChild("Frame").BackgroundTransparency = 1 end
             TabBtn.BackgroundColor3 = Theme.TabAfter; TabBtn.TextColor3 = Theme.Text; Selection.BackgroundTransparency = 0; Page.Visible = true
         end)
 
         local Elements = {}
 
-        -- 1. PROFİL MODÜLÜ (Anlık Güncellenen)
+        -- 1. PROFİL MODÜLÜ (Anlık)
         function Elements:AddProfile()
             local PFrame = Instance.new("Frame", Page)
             PFrame.Size = UDim2.new(1, 0, 0, 160); PFrame.BackgroundTransparency = 1
@@ -187,7 +185,7 @@ function Luaware:Window(Config)
             InfoText.RichText = true; InfoText.LineHeight = 1.3
 
             local execName = identifyexecutor and identifyexecutor() or "Xeno"
-            local gameName = "LuaWare Script Aktif"
+            local gameName = "Bilinmiyor"
             pcall(function() gameName = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name end)
 
             local function UpdateProfileInfo()
@@ -195,8 +193,7 @@ function Luaware:Window(Config)
                 local maxPlayers = Players.MaxPlayers
                 InfoText.Text = string.format("Roblox User Name: <font color='rgb(180,180,190)'>%s</font>\nGame Id: <font color='rgb(180,180,190)'>%d</font>\nGame Name: 🎮 <font color='rgb(180,180,190)'>%s</font>\nPlace Id: <font color='rgb(180,180,190)'>%d</font>\nServer: 👥 <font color='rgb(180,180,190)'>%d/%d</font>\nExecutor: <font color='rgb(255,70,85)'>%s</font>\nExecutor Level: <font color='rgb(255,70,85)'>3</font>", LocalPlayer.Name, game.GameId, gameName, game.PlaceId, playersInServer, maxPlayers, execName)
             end
-            UpdateProfileInfo()
-            task.spawn(function() while task.wait(2) do if InfoText.Parent then UpdateProfileInfo() else break end end end)
+            UpdateProfileInfo(); task.spawn(function() while task.wait(2) do if InfoText.Parent then UpdateProfileInfo() else break end end end)
         end
 
         function Elements:AddSection(txt)
@@ -205,22 +202,15 @@ function Luaware:Window(Config)
             lbl.TextColor3 = Theme.Text; lbl.Font = Enum.Font.GothamBold; lbl.TextSize = 14; lbl.TextXAlignment = Enum.TextXAlignment.Left
         end
 
-        -- 3. OYUN KARTI (GAME ICON ÇEKİCİ)
+        -- 2. ORİJİNAL HAWK OYUN KARTI (GameIcon)
         function Elements:AddGameCard(Config)
             local cF = Instance.new("Frame", Page)
             cF.Size = UDim2.new(1, -15, 0, 80); cF.BackgroundColor3 = Theme.Card; cF.BorderSizePixel = 0
-            Instance.new("UICorner", cF).CornerRadius = UDim.new(0, 6)
+            Instance.new("UICorner", cF).CornerRadius = UDim.new(0, 8)
             
             local img = Instance.new("ImageLabel", cF)
             img.Size = UDim2.new(0, 60, 0, 60); img.Position = UDim2.new(0, 10, 0.5, -30); img.BackgroundColor3 = Theme.Main
-            
-            -- ROBLOX GİZLİ APİSİ (Attığın resimlerdeki orijinal kapağı anında indirir)
-            if Config.PlaceId then
-                img.Image = "rbxthumb://type=GameIcon&id=" .. Config.PlaceId .. "&w=150&h=150"
-            else
-                img.Image = "rbxassetid://13570069771"
-            end
-            
+            if Config.PlaceId then img.Image = "rbxthumb://type=GameIcon&id=" .. Config.PlaceId .. "&w=150&h=150" else img.Image = "rbxassetid://13570069771" end
             img.ScaleType = Enum.ScaleType.Crop
             Instance.new("UICorner", img).CornerRadius = UDim.new(0, 6)
 
@@ -230,17 +220,16 @@ function Luaware:Window(Config)
 
             local status = Instance.new("TextLabel", cF)
             status.Size = UDim2.new(1, -100, 0, 16); status.Position = UDim2.new(0, 80, 0, 32); status.BackgroundTransparency = 1
-            status.Text = Config.Status or "Status: Working"; status.TextColor3 = Theme.Working; status.Font = Enum.Font.GothamBold; status.TextSize = 11; status.TextXAlignment = Enum.TextXAlignment.Left
+            status.Text = Config.Status or "Status: Working"; status.TextColor3 = Theme.Working; status.Font = Enum.Font.GothamBold; status.TextSize = 12; status.TextXAlignment = Enum.TextXAlignment.Left
 
             local detail = Instance.new("TextLabel", cF)
             detail.Size = UDim2.new(1, -100, 0, 16); detail.Position = UDim2.new(0, 80, 0, 50); detail.BackgroundTransparency = 1
             detail.Text = Config.Update or "Last Update: N/A"; detail.TextColor3 = Theme.DateBlue; detail.Font = Enum.Font.GothamBold; detail.TextSize = 11; detail.TextXAlignment = Enum.TextXAlignment.Left
 
-            -- ÇALIŞTIR / KEY AL BUTONU
             if Config.Callback then
                 local loadBtnFrame = Instance.new("Frame", cF)
-                loadBtnFrame.Size = UDim2.new(0, 70, 0, 26); loadBtnFrame.Position = UDim2.new(1, -85, 0.5, -13); loadBtnFrame.BackgroundColor3 = Theme.Main
-                Instance.new("UICorner", loadBtnFrame).CornerRadius = UDim.new(0, 4)
+                loadBtnFrame.Size = UDim2.new(0, 75, 0, 26); loadBtnFrame.Position = UDim2.new(1, -85, 0.5, -13); loadBtnFrame.BackgroundColor3 = Theme.Main
+                Instance.new("UICorner", loadBtnFrame).CornerRadius = UDim.new(0, 6); Instance.new("UIStroke", loadBtnFrame).Color = Theme.TitleBar
                 local loadBtn = Instance.new("TextButton", loadBtnFrame)
                 loadBtn.Size = UDim2.new(1, 0, 1, 0); loadBtn.BackgroundTransparency = 1; loadBtn.Text = "Çalıştır"; loadBtn.TextColor3 = Theme.Text; loadBtn.Font = Enum.Font.GothamBold; loadBtn.TextSize = 11
                 loadBtn.MouseButton1Click:Connect(function()
